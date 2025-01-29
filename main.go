@@ -237,6 +237,38 @@ func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(evolutionChain)
 }
 
+func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	gameIDStr := vars["game_id"]
+
+	// Convertir el game_id a int
+	gameID, err := strconv.Atoi(gameIDStr)
+	if err != nil {
+		http.Error(w, "game_id debe ser un número", http.StatusBadRequest)
+		return
+	}
+
+	// Obtener la colección de daily_pokemon
+	collection := client.Database("pokemon_db").Collection("daily_pokemon")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Buscar el Pokémon con el game_id más reciente
+	filter := bson.M{"game_id": gameID}
+	opts := options.FindOne().SetSort(bson.M{"date": -1})
+
+	var dailyPokemon DailyPokemon
+	err = collection.FindOne(ctx, filter, opts).Decode(&dailyPokemon)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Devolver el Pokémon más reciente en formato JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dailyPokemon)
+}
+
 func main() {
 	// Iniciar la rutina diaria en una goroutine
 	go scheduleDailyPokemon()
@@ -247,6 +279,8 @@ func main() {
 	r.HandleFunc("/pokemons/{id}", getPokemonByID).Methods("GET")
 	r.HandleFunc("/pokemons/name/{name}", getPokemonByName).Methods("GET")
 	r.HandleFunc("/pokemons/{id}/evolution", getEvolutionChainByID).Methods("GET")
+
+	r.HandleFunc("/pokemons/daily/{game_id}/latest", getLatestDailyPokemonByGameID).Methods("GET")
 
 	fmt.Println("Servidor iniciado en el puerto 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
