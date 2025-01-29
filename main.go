@@ -74,36 +74,34 @@ func getRandomPokemon() (bson.M, error) {
 	return pokemon, nil
 }
 
-// Función que se ejecutará todos los días a las 00:00
+// Función que se ejecutará una vez al día a las 14:10
 func scheduleDailyPokemon() {
-	for {
-		// Esperar hasta las 00:00 del próximo día
-		now := time.Now()
-		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 14, 10, 0, 0, now.Location())
-		durationUntilMidnight := nextMidnight.Sub(now)
-		time.Sleep(durationUntilMidnight)
+	// Esperar hasta las 14:10 del próximo día
+	now := time.Now()
+	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 14, 30, 0, 0, now.Location())
+	durationUntilScheduledTime := nextScheduledTime.Sub(now)
+	time.Sleep(durationUntilScheduledTime)
 
-		// Obtener un Pokémon aleatorio
-		pokemon, err := getRandomPokemon()
-		if err != nil {
-			log.Printf("Error al obtener Pokémon aleatorio: %v", err)
-			continue
-		}
+	// Obtener un Pokémon aleatorio
+	pokemon, err := getRandomPokemon()
+	if err != nil {
+		log.Printf("Error al obtener Pokémon aleatorio: %v", err)
+		return
+	}
 
-		// Crear la estructura con la fecha y el Pokémon
-		dailyPokemon := DailyPokemon{
-			Pokemon: pokemon,
-			Date:    time.Now().Format(time.RFC3339),
-		}
+	// Crear la estructura con la fecha y el Pokémon
+	dailyPokemon := DailyPokemon{
+		Pokemon: pokemon,
+		Date:    time.Now().Format(time.RFC3339),
+	}
 
-		// Almacenar el Pokémon en la colección `daily_pokemon`
-		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
-		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
-		if err != nil {
-			log.Printf("Error al almacenar Pokémon del día: %v", err)
-		} else {
-			log.Println("Nuevo Pokémon del día almacenado correctamente!")
-		}
+	// Almacenar el Pokémon en la colección `daily_pokemon`
+	dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
+	_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
+	if err != nil {
+		log.Printf("Error al almacenar Pokémon del día: %v", err)
+	} else {
+		log.Println("Nuevo Pokémon del día almacenado correctamente!")
 	}
 }
 
