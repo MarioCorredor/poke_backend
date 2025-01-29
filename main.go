@@ -46,6 +46,7 @@ func init() {
 type DailyPokemon struct {
 	Pokemon bson.M `bson:"pokemon"`
 	Date    string `bson:"date"`
+	GameID  int    `bson:"game_id"`
 }
 
 // Función para obtener un Pokémon aleatorio
@@ -74,36 +75,39 @@ func getRandomPokemon() (bson.M, error) {
 	return pokemon, nil
 }
 
-// Función que se ejecutará una vez al día a las 14:10
 func scheduleDailyPokemon() {
 	// Esperar hasta las 14:10 del próximo día
 	now := time.Now()
-	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 13, 59, 0, 0, now.Location())
+	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 14, 06, 0, 0, now.Location())
 	durationUntilScheduledTime := nextScheduledTime.Sub(now)
 	fmt.Println("Tiempo de espera: ", durationUntilScheduledTime)
 	time.Sleep(durationUntilScheduledTime)
 	print("Time finished!")
 
-	// Obtener un Pokémon aleatorio
-	pokemon, err := getRandomPokemon()
-	if err != nil {
-		log.Printf("Error al obtener Pokémon aleatorio: %v", err)
-		return
-	}
+	// Generar tres Pokémon aleatorios y almacenarlos
+	for gameID := 1; gameID <= 3; gameID++ {
+		// Obtener un Pokémon aleatorio
+		pokemon, err := getRandomPokemon()
+		if err != nil {
+			log.Printf("Error al obtener Pokémon aleatorio: %v", err)
+			continue
+		}
 
-	// Crear la estructura con la fecha y el Pokémon
-	dailyPokemon := DailyPokemon{
-		Pokemon: pokemon,
-		Date:    time.Now().Format(time.RFC3339),
-	}
+		// Crear la estructura con la fecha, el Pokémon y el game_id
+		dailyPokemon := DailyPokemon{
+			Pokemon: pokemon,
+			Date:    time.Now().Format(time.RFC3339),
+			GameID:  gameID,
+		}
 
-	// Almacenar el Pokémon en la colección `daily_pokemon`
-	dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
-	_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
-	if err != nil {
-		log.Printf("Error al almacenar Pokémon del día: %v", err)
-	} else {
-		log.Println("Nuevo Pokémon del día almacenado correctamente!")
+		// Almacenar el Pokémon en la colección `daily_pokemon`
+		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
+		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
+		if err != nil {
+			log.Printf("Error al almacenar Pokémon del día: %v", err)
+		} else {
+			log.Printf("Nuevo Pokémon del día (GameID: %d) almacenado correctamente!", gameID)
+		}
 	}
 }
 
