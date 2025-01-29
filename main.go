@@ -79,7 +79,7 @@ func scheduleDailyPokemon() {
 	for {
 		// Esperar hasta las 00:00 del próximo día
 		now := time.Now()
-		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 14, 10, 0, 0, now.Location())
 		durationUntilMidnight := nextMidnight.Sub(now)
 		time.Sleep(durationUntilMidnight)
 
