@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"golang.org/x/exp/rand"
 )
 
 var client *mongo.Client
@@ -39,6 +40,71 @@ func init() {
 		log.Fatal(err)
 	}
 	fmt.Println("Conectado a MongoDB!")
+}
+
+// Estructura para almacenar el Pokémon del día
+type DailyPokemon struct {
+	Pokemon bson.M `bson:"pokemon"`
+	Date    string `bson:"date"`
+}
+
+// Función para obtener un Pokémon aleatorio
+func getRandomPokemon() (bson.M, error) {
+	collection := client.Database("pokemon_db").Collection("pokemon")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Encontrar el número total de Pokémon en la colección
+	count, err := collection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Generar un índice aleatorio dentro del rango de IDs
+	rand.Seed(uint64(time.Now().UnixNano()))
+	randomIndex := rand.Int63n(count)
+
+	// Buscar el Pokémon con el índice aleatorio
+	var pokemon bson.M
+	err = collection.FindOne(ctx, bson.M{"id": randomIndex + 1}).Decode(&pokemon)
+	if err != nil {
+		return nil, err
+	}
+
+	return pokemon, nil
+}
+
+// Función que se ejecutará todos los días a las 00:00
+func scheduleDailyPokemon() {
+	for {
+		// Esperar hasta las 00:00 del próximo día
+		now := time.Now()
+		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+		durationUntilMidnight := nextMidnight.Sub(now)
+		time.Sleep(durationUntilMidnight)
+
+		// Obtener un Pokémon aleatorio
+		pokemon, err := getRandomPokemon()
+		if err != nil {
+			log.Printf("Error al obtener Pokémon aleatorio: %v", err)
+			continue
+		}
+
+		// Crear la estructura con la fecha y el Pokémon
+		dailyPokemon := DailyPokemon{
+			Pokemon: pokemon,
+			Date:    time.Now().Format(time.RFC3339),
+		}
+
+		// Almacenar el Pokémon en la colección `daily_pokemon`
+		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
+		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
+		if err != nil {
+			log.Printf("Error al almacenar Pokémon del día: %v", err)
+		} else {
+			log.Println("Nuevo Pokémon del día almacenado correctamente!")
+		}
+	}
 }
 
 func getPokemons(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +236,9 @@ func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Iniciar la rutina diaria en una goroutine
+	go scheduleDailyPokemon()
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/pokemons", getPokemons).Methods("GET")
