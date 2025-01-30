@@ -281,6 +281,7 @@ func main() {
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+		fmt.Println("Hey, I'm still running")
 	}).Methods("GET")
 
 	r.HandleFunc("/pokemons", getPokemons).Methods("GET")
