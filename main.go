@@ -140,7 +140,6 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
 
-	// Convertir a int si el ID en MongoDB es numérico
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Error(w, "ID must be a number", http.StatusBadRequest)
@@ -168,7 +167,6 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
 
-	// Validar que la búsqueda tenga al menos 2 letras
 	if len(name) < 2 {
 		http.Error(w, "Search must contain at least 2 letters", http.StatusBadRequest)
 		return
@@ -178,7 +176,6 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Usar ^ para que el nombre empiece por la cadena dada
 	filter := bson.M{"name": bson.M{"$regex": "^" + name, "$options": "i"}}
 
 	cursor, err := collection.Find(ctx, filter)
@@ -245,7 +242,6 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	gameIDStr := vars["game_id"]
 
-	// Convertir el game_id a int
 	gameID, err := strconv.Atoi(gameIDStr)
 	if err != nil {
 		http.Error(w, "game_id must be a number", http.StatusBadRequest)
@@ -259,7 +255,7 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	filter := bson.M{"game_id": gameID}
 	opts := options.FindOne().SetSort(bson.M{"date": -1})
 
-	var dailyPokemon DailyPokemon
+	var dailyPokemon bson.M
 	err = collection.FindOne(ctx, filter, opts).Decode(&dailyPokemon)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -270,13 +266,29 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(dailyPokemon)
 }
 
-// Main function to start the server
+func enableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*") // Permitir cualquier origen
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
+		// If it is a preflight request (OPTIONS), 200 OK
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Main function to start the server
 func main() {
 	// Start the daily Pokemon scheduler in a goroutine
 	go scheduleDailyPokemon()
 
 	r := mux.NewRouter()
+	r.Use(enableCORS) // CORS Middleware
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -291,6 +303,6 @@ func main() {
 
 	r.HandleFunc("/pokemons/daily/{game_id}/latest", getLatestDailyPokemonByGameID).Methods("GET")
 
-	fmt.Println("Servidor iniciado en el puerto 8080")
+	fmt.Println("Server initialized in port: 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
