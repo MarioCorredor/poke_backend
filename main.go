@@ -42,30 +42,30 @@ func init() {
 	fmt.Println("Conectado a MongoDB!")
 }
 
-// Estructura para almacenar el Pokémon del día
+// Structure to store daily Pokemon
 type DailyPokemon struct {
 	Pokemon bson.M `bson:"pokemon"`
 	Date    string `bson:"date"`
 	GameID  int    `bson:"game_id"`
 }
 
-// Función para obtener un Pokémon aleatorio
+// Function to get a random Pokemon
 func getRandomPokemon() (bson.M, error) {
 	collection := client.Database("pokemon_db").Collection("pokemon")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Encontrar el número total de Pokémon en la colección
+	// Find the total number of Pokemon in the collection
 	count, err := collection.CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
 
-	// Generar un índice aleatorio dentro del rango de IDs
+	// Generate a random index within the range of IDs
 	rand.Seed(uint64(time.Now().UnixNano()))
 	randomIndex := rand.Int63n(count)
 
-	// Buscar el Pokémon con el índice aleatorio
+	// Find the Pokemon with the random index
 	var pokemon bson.M
 	err = collection.FindOne(ctx, bson.M{"id": randomIndex + 1}).Decode(&pokemon)
 	if err != nil {
@@ -75,40 +75,44 @@ func getRandomPokemon() (bson.M, error) {
 	return pokemon, nil
 }
 
+// Function to schedule daily Pokemon
+
 func scheduleDailyPokemon() {
-	// Esperar hasta las 14:10 del próximo día
+	// Wait until 00:00 of the next day
 	now := time.Now()
 	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
 	durationUntilScheduledTime := nextScheduledTime.Sub(now)
 	time.Sleep(durationUntilScheduledTime)
 
-	// Generar tres Pokémon aleatorios y almacenarlos
+	// Generate three random Pokemon and store them
 	for gameID := 1; gameID <= 3; gameID++ {
-		// Obtener un Pokémon aleatorio
+
+		// Get a random Pokemon
 		pokemon, err := getRandomPokemon()
 		if err != nil {
-			log.Printf("Error al obtener Pokémon aleatorio: %v", err)
+			log.Printf("Error obtaining random pokémon: %v", err)
 			continue
 		}
 
-		// Crear la estructura con la fecha, el Pokémon y el game_id
+		// Create a DailyPokemon struct with the random Pokemon, date, and game ID
 		dailyPokemon := DailyPokemon{
 			Pokemon: pokemon,
 			Date:    time.Now().Format(time.RFC3339),
 			GameID:  gameID,
 		}
 
-		// Almacenar el Pokémon en la colección `daily_pokemon`
+		// Store the DailyPokemon in the "daily_pokemon" collection
 		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
 		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
 		if err != nil {
-			log.Printf("Error al almacenar Pokémon del día: %v", err)
+			log.Printf("Error saving daily pokémon: %v", err)
 		} else {
-			log.Printf("Nuevo Pokémon del día (GameID: %d) almacenado correctamente!", gameID)
+			log.Printf("New daily pokémon (GameID: %d) saved!", gameID)
 		}
 	}
 }
 
+// Function to handle HTTP request to get all Pokemon
 func getPokemons(w http.ResponseWriter, r *http.Request) {
 	collection := client.Database("pokemon_db").Collection("pokemon")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -131,6 +135,7 @@ func getPokemons(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pokemons)
 }
 
+// Function to handle HTTP request to get a Pokemon by ID
 func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
@@ -138,7 +143,7 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	// Convertir a int si el ID en MongoDB es numérico
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "ID debe ser un número", http.StatusBadRequest)
+		http.Error(w, "ID must be a number", http.StatusBadRequest)
 		return
 	}
 
@@ -150,7 +155,6 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	var pokemon bson.M
 	err = collection.FindOne(ctx, bson.M{"id": id}).Decode(&pokemon)
 	if err != nil {
-		print("Entro al nil")
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -159,13 +163,14 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pokemon)
 }
 
+// Function to handle HTTP request to get a Pokemon by name
 func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
 
 	// Validar que la búsqueda tenga al menos 2 letras
 	if len(name) < 2 {
-		http.Error(w, "La búsqueda debe tener al menos 2 letras", http.StatusBadRequest)
+		http.Error(w, "Search must contain at least 2 letters", http.StatusBadRequest)
 		return
 	}
 
@@ -189,9 +194,9 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Si no se encuentran resultados, responder con un 404
+	// If no results found, 404
 	if len(pokemons) == 0 {
-		http.Error(w, "No se encontraron Pokémon con ese nombre", http.StatusNotFound)
+		http.Error(w, "No pokémons found with that name", http.StatusNotFound)
 		return
 	}
 
@@ -199,18 +204,17 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pokemons)
 }
 
+// Function to handle HTTP request to get the evolution chain of a Pokemon by ID
 func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
 
-	// Convertir a int si el ID en MongoDB es numérico
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "ID debe ser un número", http.StatusBadRequest)
+		http.Error(w, "ID must be a number", http.StatusBadRequest)
 		return
 	}
 
-	// Primero, obtener el Pokémon para conseguir su evolution_chain_id
 	pokemonCollection := client.Database("pokemon_db").Collection("pokemon")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -224,7 +228,6 @@ func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
 
 	evolutionChainID := pokemon["evolution_chain_id"]
 
-	// Luego, obtener la cadena de evolución
 	evolutionCollection := client.Database("pokemon_db").Collection("evolution_chain")
 	var evolutionChain bson.M
 	err = evolutionCollection.FindOne(ctx, bson.M{"id": evolutionChainID}).Decode(&evolutionChain)
@@ -237,6 +240,7 @@ func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(evolutionChain)
 }
 
+// Function to handle HTTP request to get the latest daily Pokemon by game ID
 func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	gameIDStr := vars["game_id"]
@@ -244,16 +248,14 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	// Convertir el game_id a int
 	gameID, err := strconv.Atoi(gameIDStr)
 	if err != nil {
-		http.Error(w, "game_id debe ser un número", http.StatusBadRequest)
+		http.Error(w, "game_id must be a number", http.StatusBadRequest)
 		return
 	}
 
-	// Obtener la colección de daily_pokemon
 	collection := client.Database("pokemon_db").Collection("daily_pokemon")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Buscar el Pokémon con el game_id más reciente
 	filter := bson.M{"game_id": gameID}
 	opts := options.FindOne().SetSort(bson.M{"date": -1})
 
@@ -264,16 +266,22 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Devolver el Pokémon más reciente en formato JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dailyPokemon)
 }
 
+// Main function to start the server
+
 func main() {
-	// Iniciar la rutina diaria en una goroutine
+	// Start the daily Pokemon scheduler in a goroutine
 	go scheduleDailyPokemon()
 
 	r := mux.NewRouter()
+
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
 
 	r.HandleFunc("/pokemons", getPokemons).Methods("GET")
 	r.HandleFunc("/pokemons/{id}", getPokemonByID).Methods("GET")
