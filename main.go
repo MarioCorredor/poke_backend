@@ -80,7 +80,7 @@ func getRandomPokemon() (bson.M, error) {
 func scheduleDailyPokemon() {
 	// Wait until 00:00 of the next day
 	now := time.Now()
-	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
+	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 20, 05, 0, 0, now.Location())
 	durationUntilScheduledTime := nextScheduledTime.Sub(now)
 	time.Sleep(durationUntilScheduledTime)
 
