@@ -176,7 +176,7 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	filter := bson.M{"name": bson.M{"$regex": "^" + name, "$options": "i"}}
+	filter := bson.M{"name": bson.M{"$eq": name}}
 
 	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
