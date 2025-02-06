@@ -77,7 +77,7 @@ func getRandomPokemon() (bson.M, error) {
 func scheduleDailyPokemon() {
 	// Wait until 00:00 of the next day
 	now := time.Now()
-	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 14, 8, 0, 0, now.Location())
+	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
 	durationUntilScheduledTime := nextScheduledTime.Sub(now)
 	time.Sleep(durationUntilScheduledTime)
 
@@ -263,6 +263,44 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(dailyPokemon)
 }
 
+// Function to handle HTTP request to add 3 new DailyPokemon
+func addThreeDailyPokemons(w http.ResponseWriter, r *http.Request) {
+	// Generate three random Pokemon and store them
+	for gameID := 1; gameID <= 3; gameID++ {
+
+		// Get a random Pokemon
+		pokemon, err := getRandomPokemon()
+		if err != nil {
+			log.Printf("Error obtaining random pokémon: %v", err)
+			http.Error(w, fmt.Sprintf("Error obtaining random pokémon: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Create a DailyPokemon struct with the random Pokemon, date, and game ID
+		dailyPokemon := DailyPokemon{
+			Pokemon: pokemon,
+			Date:    time.Now().Format(time.RFC3339),
+			GameID:  gameID,
+		}
+
+		// Store the DailyPokemon in the "daily_pokemon" collection
+		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
+		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
+		if err != nil {
+			log.Printf("Error saving daily pokémon: %v", err)
+			http.Error(w, fmt.Sprintf("Error saving daily pokémon: %v", err), http.StatusInternalServerError)
+			return
+		} else {
+			log.Printf("New daily pokémon (GameID: %d) saved!", gameID)
+		}
+	}
+
+	// Respond with a success message
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "3 new daily Pokémon added successfully"})
+}
+
 func enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*") // Permitir cualquier origen
@@ -299,6 +337,8 @@ func main() {
 	r.HandleFunc("/pokemons/{id}/evolution", getEvolutionChainByID).Methods("GET")
 
 	r.HandleFunc("/pokemons/daily/{game_id}/latest", getLatestDailyPokemonByGameID).Methods("GET")
+
+	r.HandleFunc("/pokemons/daily/add", addThreeDailyPokemons).Methods("POST")
 
 	fmt.Println("Server initialized in port: 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
