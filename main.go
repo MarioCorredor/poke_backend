@@ -55,19 +55,30 @@ func getRandomPokemon() (bson.M, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Find the total number of Pokemon in the collection
-	count, err := collection.CountDocuments(ctx, bson.M{})
+	// Find the total number of Pokemon in the collection for both ID ranges (1-1025 and 10001-10279)
+	count1, err := collection.CountDocuments(ctx, bson.M{"id": bson.M{"$gte": 1, "$lte": 1025}})
+	if err != nil {
+		return nil, err
+	}
+	count2, err := collection.CountDocuments(ctx, bson.M{"id": bson.M{"$gte": 10001, "$lte": 10279}})
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate a random index within the range of IDs
-	rand.Seed(uint64(time.Now().UnixNano()))
-	randomIndex := rand.Int63n(count)
+	totalCount := count1 + count2
 
-	// Find the Pokemon with the random index
+	// Generate a random index within the total count
+	rand.Seed(uint64(time.Now().UnixNano()))
+	randomIndex := rand.Int63n(int64(totalCount))
+
 	var pokemon bson.M
-	err = collection.FindOne(ctx, bson.M{"id": randomIndex + 1}).Decode(&pokemon)
+	if randomIndex < int64(count1) {
+		// Select from the first range (1-1025)
+		err = collection.FindOne(ctx, bson.M{"id": randomIndex + 1}).Decode(&pokemon)
+	} else {
+		// Select from the second range (10001-10279)
+		err = collection.FindOne(ctx, bson.M{"id": randomIndex - int64(count1) + 10001}).Decode(&pokemon)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -198,42 +209,6 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pokemons)
 }
 
-// Function to handle HTTP request to get the evolution chain of a Pokemon by ID
-func getEvolutionChainByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	idStr := vars["id"]
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		http.Error(w, "ID must be a number", http.StatusBadRequest)
-		return
-	}
-
-	pokemonCollection := client.Database("pokemon_db").Collection("pokemon")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var pokemon bson.M
-	err = pokemonCollection.FindOne(ctx, bson.M{"id": id}).Decode(&pokemon)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	evolutionChainID := pokemon["evolution_chain_id"]
-
-	evolutionCollection := client.Database("pokemon_db").Collection("evolution_chain")
-	var evolutionChain bson.M
-	err = evolutionCollection.FindOne(ctx, bson.M{"id": evolutionChainID}).Decode(&evolutionChain)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(evolutionChain)
-}
-
 // Function to handle HTTP request to get the latest daily Pokemon by game ID
 func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -334,7 +309,6 @@ func main() {
 	r.HandleFunc("/pokemons", getPokemons).Methods("GET")
 	r.HandleFunc("/pokemons/{id}", getPokemonByID).Methods("GET")
 	r.HandleFunc("/pokemons/name/{name}", getPokemonByName).Methods("GET")
-	r.HandleFunc("/pokemons/{id}/evolution", getEvolutionChainByID).Methods("GET")
 
 	r.HandleFunc("/pokemons/daily/{game_id}/latest", getLatestDailyPokemonByGameID).Methods("GET")
 
