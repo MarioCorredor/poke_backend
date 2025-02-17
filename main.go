@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -23,9 +24,10 @@ func init() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	username := "pokemon_db"
-	password := "H6fdOF2505Qn3boQ"
-	uri := fmt.Sprintf("mongodb+srv://%s:%s@clusterpoke.hexkh.mongodb.net/?retryWrites=true&w=majority&appName=ClusterPoke", username, password)
+	username := os.Getenv("MONGO_USERNAME")
+	password := os.Getenv("MONGO_PASSWORD")
+	url := os.Getenv("MONGO_URI")
+	uri := fmt.Sprintf(url, username, password)
 
 	clientOptions := options.Client().ApplyURI(uri)
 	var err error
