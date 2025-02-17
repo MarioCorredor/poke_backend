@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -20,24 +21,27 @@ import (
 var client *mongo.Client
 
 func init() {
-	// Connect to MongoDB
+	// Cargar las variables de entorno desde el archivo .env
+	err := godotenv.Load() // Aquí declaras `err` por primera vez
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Conectar a MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	username := os.Getenv("MONGO_USERNAME")
-	password := os.Getenv("MONGO_PASSWORD")
-	url := os.Getenv("MONGO_URI")
-	uri := fmt.Sprintf(url, username, password)
+	uri := os.Getenv("MONGO_URI")
 
 	clientOptions := options.Client().ApplyURI(uri)
-	var err error
-	client, err = mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		log.Fatal(err)
+	var connErr error // Declaras una nueva variable `connErr` para manejar la conexión a MongoDB
+	client, connErr = mongo.Connect(ctx, clientOptions)
+	if connErr != nil {
+		log.Fatal(connErr)
 	}
 
-	// Verify the connection
-	err = client.Ping(ctx, nil)
+	// Verificar la conexión
+	err = client.Ping(ctx, nil) // Usas la variable `err` ya declarada
 	if err != nil {
 		log.Fatal(err)
 	}
