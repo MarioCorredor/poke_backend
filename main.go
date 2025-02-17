@@ -89,7 +89,11 @@ func scheduleDailyPokemon() {
 	// Wait until 00:00 of the next day
 	now := time.Now()
 	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
+	if now.After(nextScheduledTime) {
+		nextScheduledTime = nextScheduledTime.Add(24 * time.Hour)
+	}
 	durationUntilScheduledTime := nextScheduledTime.Sub(now)
+	log.Printf("Time until next daily pokemons: %v", durationUntilScheduledTime)
 	time.Sleep(durationUntilScheduledTime)
 
 	// Generate three random Pokemon and store them
@@ -238,6 +242,49 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(dailyPokemon)
 }
 
+// Function to handle HTTP request to get the yesterday daily Pokemon by game ID
+func getSecondLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	gameIDStr := vars["game_id"]
+
+	gameID, err := strconv.Atoi(gameIDStr)
+	if err != nil {
+		http.Error(w, "game_id must be a number", http.StatusBadRequest)
+		return
+	}
+
+	collection := client.Database("pokemon_db").Collection("daily_pokemon")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Buscar los dos últimos registros ordenados por fecha en orden descendente
+	filter := bson.M{"game_id": gameID}
+	opts := options.Find().SetSort(bson.M{"date": -1}).SetLimit(2)
+
+	cursor, err := collection.Find(ctx, filter, opts)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var dailyPokemons []bson.M
+	if err = cursor.All(ctx, &dailyPokemons); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Verificar que hay al menos dos resultados
+	if len(dailyPokemons) < 2 {
+		http.Error(w, "Not enough records found", http.StatusNotFound)
+		return
+	}
+
+	// Devolver el segundo más reciente
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dailyPokemons[1])
+}
+
 // Function to handle HTTP request to add 3 new DailyPokemon
 func addThreeDailyPokemons(w http.ResponseWriter, r *http.Request) {
 	// Generate three random Pokemon and store them
@@ -294,11 +341,12 @@ func enableCORS(next http.Handler) http.Handler {
 
 // Main function to start the server
 func main() {
+
 	// Start the daily Pokemon scheduler in a goroutine
 	go scheduleDailyPokemon()
 
 	r := mux.NewRouter()
-	r.Use(enableCORS) // CORS Middleware
+	r.Use(enableCORS)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -311,6 +359,7 @@ func main() {
 	r.HandleFunc("/pokemons/name/{name}", getPokemonByName).Methods("GET")
 
 	r.HandleFunc("/pokemons/daily/{game_id}/latest", getLatestDailyPokemonByGameID).Methods("GET")
+	r.HandleFunc("/pokemons/daily/{game_id}/yesterday", getSecondLatestDailyPokemonByGameID).Methods("GET")
 
 	r.HandleFunc("/pokemons/daily/add", addThreeDailyPokemons).Methods("POST")
 
