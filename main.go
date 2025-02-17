@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -21,11 +20,11 @@ import (
 var client *mongo.Client
 
 func init() {
-	// Cargar las variables de entorno desde el archivo .env
-	err := godotenv.Load() // Aquí declaras `err` por primera vez
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	// // Cargar las variables de entorno desde el archivo .env
+	// err := godotenv.Load() // Aquí declaras `err` por primera vez
+	// if err != nil {
+	// 	log.Fatal("Error loading .env file")
+	// }
 
 	// Conectar a MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -41,7 +40,7 @@ func init() {
 	}
 
 	// Verificar la conexión
-	err = client.Ping(ctx, nil) // Usas la variable `err` ya declarada
+	err := client.Ping(ctx, nil) // Usas la variable `err` ya declarada
 	if err != nil {
 		log.Fatal(err)
 	}
