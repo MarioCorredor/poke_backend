@@ -91,40 +91,38 @@ func getRandomPokemon() (bson.M, error) {
 	return pokemon, nil
 }
 func scheduleDailyPokemon() {
-	// Wait until 00:00 of the next day
-	now := time.Now()
-	nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 23, 0, 0, 0, now.Location())
-	if now.After(nextScheduledTime) {
-		nextScheduledTime = nextScheduledTime.Add(24 * time.Hour)
-	}
-	durationUntilScheduledTime := nextScheduledTime.Sub(now)
-	log.Printf("Time until next daily pokemons: %v", durationUntilScheduledTime)
-	time.Sleep(durationUntilScheduledTime)
-
-	// Generate three random Pokemon and store them
-	for gameID := 1; gameID <= 3; gameID++ {
-
-		// Get a random Pokemon
-		pokemon, err := getRandomPokemon()
-		if err != nil {
-			log.Printf("Error obtaining random pokémon: %v", err)
-			continue
+	for {
+		// Calcular la próxima ejecución a las 00:00 del siguiente día
+		now := time.Now()
+		nextScheduledTime := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		if now.After(nextScheduledTime) {
+			nextScheduledTime = nextScheduledTime.Add(24 * time.Hour)
 		}
+		durationUntilScheduledTime := nextScheduledTime.Sub(now)
+		log.Printf("Time until next daily Pokémon: %v", durationUntilScheduledTime)
+		time.Sleep(durationUntilScheduledTime)
 
-		// Create a DailyPokemon struct with the random Pokemon, date, and game ID
-		dailyPokemon := DailyPokemon{
-			Pokemon: pokemon,
-			Date:    time.Now().Format(time.RFC3339),
-			GameID:  gameID,
-		}
+		// Generar los 3 Pokémon diarios
+		for gameID := 1; gameID <= 3; gameID++ {
+			pokemon, err := getRandomPokemon()
+			if err != nil {
+				log.Printf("Error obtaining random Pokémon: %v", err)
+				continue
+			}
 
-		// Store the DailyPokemon in the "daily_pokemon" collection
-		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
-		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
-		if err != nil {
-			log.Printf("Error saving daily pokémon: %v", err)
-		} else {
-			log.Printf("New daily pokémon (GameID: %d) saved!", gameID)
+			dailyPokemon := DailyPokemon{
+				Pokemon: pokemon,
+				Date:    time.Now().Format(time.RFC3339),
+				GameID:  gameID,
+			}
+
+			dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
+			_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
+			if err != nil {
+				log.Printf("Error saving daily Pokémon: %v", err)
+			} else {
+				log.Printf("New daily Pokémon (GameID: %d) saved!", gameID)
+			}
 		}
 	}
 }
