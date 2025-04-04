@@ -20,12 +20,6 @@ import (
 var client *mongo.Client
 
 func init() {
-	// // Cargar las variables de entorno desde el archivo .env
-	// err := godotenv.Load() // Aquí declaras `err` por primera vez
-	// if err != nil {
-	// 	log.Fatal("Error loading .env file")
-	// }
-
 	// Conectar a MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -129,12 +123,15 @@ func scheduleDailyPokemon() {
 
 // Function to handle HTTP request to get all Pokemon
 func getPokemons(w http.ResponseWriter, r *http.Request) {
+	log.Println("[GET] /pokemons - Request received")
+
 	collection := client.Database("pokemon_db").Collection("pokemon")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
+		log.Printf("Error retrieving pokémons: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -142,10 +139,12 @@ func getPokemons(w http.ResponseWriter, r *http.Request) {
 
 	var pokemons []bson.M
 	if err = cursor.All(ctx, &pokemons); err != nil {
+		log.Printf("Error decoding pokémons: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Successfully retrieved %d pokémons", len(pokemons))
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pokemons)
 }
@@ -154,9 +153,11 @@ func getPokemons(w http.ResponseWriter, r *http.Request) {
 func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
+	log.Printf("[GET] /pokemons/%s - Request received", idStr)
 
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
+		log.Printf("Invalid ID: %v", err)
 		http.Error(w, "ID must be a number", http.StatusBadRequest)
 		return
 	}
@@ -169,10 +170,12 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 	var pokemon bson.M
 	err = collection.FindOne(ctx, bson.M{"id": id}).Decode(&pokemon)
 	if err != nil {
+		log.Printf("Pokémon not found with ID %d: %v", id, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
+	log.Printf("Successfully retrieved Pokémon with ID %d", id)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pokemon)
 }
@@ -181,6 +184,7 @@ func getPokemonByID(w http.ResponseWriter, r *http.Request) {
 func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
+	log.Printf("[GET] /pokemons/name/%s - Request received", name)
 
 	if len(name) < 2 {
 		http.Error(w, "Search must contain at least 2 letters", http.StatusBadRequest)
@@ -195,6 +199,7 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 
 	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
+		log.Printf("Error searching pokémons by name: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -202,16 +207,19 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 
 	var pokemons []bson.M
 	if err = cursor.All(ctx, &pokemons); err != nil {
+		log.Printf("Error decoding pokémons by name: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// If no results found, 404
 	if len(pokemons) == 0 {
+		log.Printf("No Pokémon found with name: %s", name)
 		http.Error(w, "No pokémons found with that name", http.StatusNotFound)
 		return
 	}
 
+	log.Printf("Found %d pokémon(s) with name %s", len(pokemons), name)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(pokemons)
 }
@@ -220,6 +228,7 @@ func getPokemonByName(w http.ResponseWriter, r *http.Request) {
 func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	gameIDStr := vars["game_id"]
+	log.Printf("[GET] /pokemons/daily/%s/latest - Request received", gameIDStr)
 
 	gameID, err := strconv.Atoi(gameIDStr)
 	if err != nil {
@@ -237,10 +246,12 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	var dailyPokemon bson.M
 	err = collection.FindOne(ctx, filter, opts).Decode(&dailyPokemon)
 	if err != nil {
+		log.Printf("No daily Pokémon found for game_id %d: %v", gameID, err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
+	log.Printf("Successfully retrieved latest daily Pokémon for game_id %d", gameID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dailyPokemon)
 }
@@ -249,9 +260,11 @@ func getLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 func getSecondLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	gameIDStr := vars["game_id"]
+	log.Printf("[GET] /pokemons/daily/%s/yesterday - Request received", gameIDStr)
 
 	gameID, err := strconv.Atoi(gameIDStr)
 	if err != nil {
+		log.Printf("Invalid game_id: %v", err)
 		http.Error(w, "game_id must be a number", http.StatusBadRequest)
 		return
 	}
@@ -266,6 +279,7 @@ func getSecondLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request)
 
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
+		log.Printf("Error retrieving daily pokémons: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -273,16 +287,19 @@ func getSecondLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request)
 
 	var dailyPokemons []bson.M
 	if err = cursor.All(ctx, &dailyPokemons); err != nil {
+		log.Printf("Error decoding daily pokémons: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Verificar que hay al menos dos resultados
 	if len(dailyPokemons) < 2 {
+		log.Println("Not enough records found for yesterday")
 		http.Error(w, "Not enough records found", http.StatusNotFound)
 		return
 	}
 
+	log.Printf("Successfully retrieved yesterday's daily Pokémon for game_id %d", gameID)
 	// Devolver el segundo más reciente
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dailyPokemons[1])
@@ -290,13 +307,15 @@ func getSecondLatestDailyPokemonByGameID(w http.ResponseWriter, r *http.Request)
 
 // Function to handle HTTP request to add 3 new DailyPokemon
 func addThreeDailyPokemons(w http.ResponseWriter, r *http.Request) {
+	log.Println("[POST] /pokemons/daily/add - Request received")
+
 	// Generate three random Pokemon and store them
 	for gameID := 1; gameID <= 3; gameID++ {
 
 		// Get a random Pokemon
 		pokemon, err := getRandomPokemon()
 		if err != nil {
-			log.Printf("Error obtaining random pokémon: %v", err)
+			log.Printf("Error obtaining random Pokémon for gameID %d: %v", gameID, err)
 			http.Error(w, fmt.Sprintf("Error obtaining random pokémon: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -312,7 +331,7 @@ func addThreeDailyPokemons(w http.ResponseWriter, r *http.Request) {
 		dailyPokemonCollection := client.Database("pokemon_db").Collection("daily_pokemon")
 		_, err = dailyPokemonCollection.InsertOne(context.Background(), dailyPokemon)
 		if err != nil {
-			log.Printf("Error saving daily pokémon: %v", err)
+			log.Printf("Error saving daily Pokémon for gameID %d: %v", gameID, err)
 			http.Error(w, fmt.Sprintf("Error saving daily pokémon: %v", err), http.StatusInternalServerError)
 			return
 		} else {
@@ -352,6 +371,7 @@ func main() {
 	r.Use(enableCORS)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("[GET] / - Health check")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 		fmt.Println("Hey, I'm still running")
